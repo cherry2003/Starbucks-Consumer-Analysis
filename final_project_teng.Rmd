@@ -1,0 +1,370 @@
+---
+title: "final_project_teng.Rmd"
+author: "Wei-Ling (Winnie) Teng"
+date: "2023-11-30"
+output: pdf_document
+---
+
+# What Influences Customers' Quality Rating of Starbucks Coffee?
+
+### Ashley Helms & Wei-Ling (Winnie) Teng
+
+## Code Set-Up
+
+### Please download "starbucks.csv" as submitted and set the working directory to your appropriate folder!
+
+```{r}
+setwd("/Users/21winniet/Desktop/My School Stuff/HOD 3200/FINAL PROJECT/PROGRESS REPORT 4")
+library(tidyverse)
+library(readxl)
+library(writexl)
+library(dplyr)
+library(ggplot2)
+library(RColorBrewer)
+library(yardstick)
+library(modelr)
+library(purrr)
+```
+
+## The "Problem"
+
+Starbucks is widely recognized as the world's largest and most popular coffeehouse chain. The company currently operates approximately 35,700 stores within 80 countries. With such a large volume of demand and attention for its products across the globe, it is imperative that Starbucks maintains the strong quality of their offerings in order to uphold their brand image for a wide range of consumer segments. Starbucks serves approximately 14 million consumers per day across a variety of cultures, ages, classes, and other demographics. Ensuring that each consumer segment is fully satisfied with the quality of their products is crucial for Starbucks to build widespread customer loyalty, sustain worldwide growth and sales volume against competitors, and protect their winning reputation. If they do not consistently understand their variety of consumer segments and ensure their needs are being served, Starbucks could face irreversible damage, especially given its large media presence.
+
+## The Data
+
+To obtain information on Starbucks' consumer segments and their corresponding thoughts on the quality of Starbucks coffee, we utilized data from a Satisfactory Customer Survey. This survey was sent out by Starbucks to 122 respondents in Malaysia in 2020. The respondents of this survey encompass a range of differences across 20 different demographic variables, which is condensed in a codebook below. We obtained this survey as a CSV dataset from Kaggle.
+
+```{r}
+# Loading The Data
+starbucks<-read_csv(file="starbucks.csv")
+
+# Filtering Out "Timestamp" Column (It is Irrelevant)
+starbucks <- starbucks%>%
+  select(-c(1))
+
+# Creating New Header Names
+new_col_headers<-c("gender",
+                    "age",
+                    "occupation",
+                    "annual_income",
+                    "visit_freq",
+                    "order_option",
+                    "visit_time",
+                    "distance",
+                    "member",
+                    "freq_purchase",
+                    "average_spendings",
+                    "rating_quality",
+                    "rating_price",
+                    "rating_salespromo",
+                    "rating_ambiance",
+                    "rating_wifi",
+                    "rating_service",
+                    "rating_meeting",
+                    "promotion_channel",
+                    "return_likelihood")
+
+colnames(starbucks) <- new_col_headers
+
+# Creating a Codebook
+my.vals<-names(starbucks)
+explanation<-c( "Male (M) or Female (F)",
+                "Age groups in intervals: aged below 20, aged 20-29, aged 30-29,or aged 40 and above",
+                "Self-identified occupation status: employed, self-employed, student, or housewife",
+                "Annual income in Malaysian Ringgits (RM): less than 25,000 RM, 25,000-50,000 RM, 50,000-100,000 RM, 100,000-150,000 RM, or more than 150,000 RM",
+                "How often the subject visits Starbucks: never, rarely, monthly, weekly, or daily",
+                "How the subject enjoys their Starbucks: dine-in, drive-thru, take away, never, or never buy",
+                "How long the subject spends at Starbucks during their visit: below 30 min, 30 min-1 hour, 1-2 hours, 2-3 hours, or more than 3 hours",
+                "Distance to the subject's nearest Starbucks location: within 1km, 1-3km, more than 3km",
+                "Starbucks membership status: Yes (Y) or No (N)",
+                "What the subject purchases the most at Starbucks: coffee, cold drinks, pastries, and/or sandwiches",
+                "How much the subject spends (RM) on an average visit to Starbucks: zero, less than 20 RM, 20-40 RM, more than 40 RM",
+                "How the subject rates the quality of Starbucks in comparison to other cafe brands from 1-5, with 1 being the poorest quality and 5 being the best quality",
+                "How the subject rates the price range of Starbucks from 1-5, with 1 being the poorest price range and 5 being the best price range",
+                "How the subject rates the importance of sales and promotions within their purchasing decisions from 1-5, with 1 being unimportant and 5 being the most important",
+                "How the subject rates the ambiance of Starbucks from 1-5, with 1 being the poorest ambiance and 5 being the best ambiance",
+                "How the subject rates the WiFi of Starbucks from 1-5, with 1 being the poorest WiFi and 5 being the best WiFi",
+                "How the subject rates the service at Starbucks from 1-5, with 1 being the poorest service and 5 being the best service",
+                "How the subject rates their likelihood of choosing Starbucks for a business meeting or hangout with friends from 1-5, with 1 being unlikely and 5 being very likely",
+                "How the subject typically hears of Starbucks promotions: social media, through friends/word of mouth, Starbucks website, and/or in-store displays",
+                "Subject answer to whether they will continue to buy at Starbucks in the future: Yes (Y) or No (N)"
+                )
+
+codebook<-data.frame(my.vals, explanation)
+
+# View(codebook)
+```
+
+## The Variable: Rated Quality of Starbucks in Relation to Other Cafe Brands
+
+The main variable we will be analyzing and predicting is consumers' rated quality of Starbucks in relation to other cafe brands. Thinking back to our problem, it is important for Starbucks to gather information on what different consumer segments think about the quality of their product offerings. Such data can help Starbucks recognize what demographics of customers are least satisfied with their quality and help the company better salvage and/or fix the associated opportunity costs. Starbucks commonly gathers this data --- in our dataset, Starbucks asked consumers for their rating of the quality of Starbucks in relation to other cafe brands that they visit. This rating was given on a scale of 1 to 5, with 1 indicating the poorest quality and 5 indicating the best quality. The figure below shows the distribution of these ratings from the respondents.
+
+```{r}
+colors <- c("#FF5959", "#FFAB6B", "#FFFB79", "#B4FF86", "#41CE00")
+
+starbucks%>%
+  ggplot(aes(x=rating_quality)) +
+  geom_histogram(binwidth = 1, fill=colors) +
+  labs(x = "Rated Quality of Starbucks in Relation to Other Cafe Brands (1 - 5)*",
+       y = "Number of Customers (Frequency)",
+       title = "Frequency of Rated Quality of Starbucks in Relation to Other\n Cafe Brands",
+       caption = "*where 1 = poorest quality and 5 = best quality")
+```
+
+As seen in the figure, the majority of respondents (approx. 90%) rated the quality of Starbucks to be a 3 or higher. This suggests that the vast majority of consumer segments feel that they are generally satisfied (at minimum) with Starbucks' product quality. Moreover, approx. 60% of respondents rated the quality of Starbucks to be either a 4 or 5, suggesting that many consumers feel very or extremely satisfied with Starbucks' product quality. Only about 10% of respondents expressed dissatisfaction (a rating of 1 or 2) with Starbucks' product quality. While these results are great news for this Starbucks shop in Malaysia, the data begs the question: What characteristics of consumers predict a higher or lower quality rating? Are disparities present between the segments that rated Starbucks well and rated Starbucks badly, and can our analysis of this segment rating distribution help create strategies to improve ratings for certain consumer demographics? To help answer these questions, we dove into a range of variables and their roles as predictors of Starbucks rating quality.
+
+## What Characteristics of Consumers Predict a Higher or Lower Quality Rating?
+
+### Rating of Starbucks Quality by Gender and Location
+
+We first decided to see if disparities in rating distribution were present in gender (Male or Female) and location (distance to the nearest Starbucks) demographics. Gender should not impact quality rating by much, as Starbucks products are meant to be consumed by all genders and are catered to both men and women alike. Location may cause some disparities, as consumers who live further away may give lower ratings as a result of travel and time inconveniences. To check these demographics and their rating distributions, we found the mean rating quality for each variable and their options:
+
+```{r}
+# Conditional Mean: Gender
+starbucks%>%
+  group_by(gender)%>%
+  summarize(mean_rating_quality_gender = mean(rating_quality, na.rm=TRUE))%>%
+  arrange(gender)%>%
+  ungroup()
+
+# Conditional Mean: Location
+starbucks%>%
+  group_by(distance)%>%
+  summarize(mean_rating_quality_distance = mean(rating_quality, na.rm=TRUE))%>%
+  arrange(distance)%>%
+  ungroup()
+```
+
+As seen in the conditional mean table results above, our predictions are generally correct. On average, women rated the quality of Starbucks to be approx. 3.68 while men rated this to be 3.65. This difference of 0.03 in average rating suggests that Starbucks does a good job in catering their products equally to both men and women, as there is no rating disparity between the two.
+
+On the other hand, consumers closest to Starbucks (within 1km) rated the quality to be approx. 3.89, consumers at a medium distance (1-3km) rated the quality to be approx. 3.71, and consumers at further distances (3km+) rated the quality to be approx. 3.54. While all these ratings are similar, suggesting that Starbucks caters generally well to consumers of various locations, the slight numerical differences indicate that consumers who have to travel further for Starbucks are more likely to give a lower quality rating. This could be because they dislike the inconvenience of having to travel and wait longer for their orders, which may also cause food and drink products to get cold.
+
+We noticed that the conditional means of rating quality by gender and by location were very similar --- all values ended up in the range from 3.5-3.9. To better visualize the data and make further analyses, we used a conditional means analysis of both gender and location as bivariate predictors of rating quality:
+
+```{r}
+starbucks%>%
+  group_by(gender, distance)%>%
+  summarize(mean_rating_quality = mean(rating_quality, na.rm=TRUE))%>%
+  ggplot(aes(x=distance, y=mean_rating_quality, fill=gender)) +
+  geom_bar(stat='identity', position='dodge') +
+  scale_fill_brewer(palette="Pastel1") +
+  scale_x_discrete(limits = c("within 1km", "1km - 3km", "more than 3km")) +
+  labs(x="Distance to Nearest Starbucks (km)",
+       y="Mean Rated Quality of Starbucks in Relation\nto Other Cafe Brands (1 - 5)*",
+       title="Mean Rated Quality of Starbucks in Relation to Other Cafe Brands:\nArranged by Gender and Distance to Nearest Starbucks",
+       fill="Gender",
+       caption = "*where 1 = poorest quality and 5 = best quality")
+```
+
+This figure opens up more consumer insights when it comes to gender and distance as predictors of rating quality. For female consumers, the rating quality decreases the further away that they live from Starbucks, suggesting that women are not as satisfied by Starbucks products if they have to travel and wait longer for them. This implies that women tend to value convenience, speed, and freshness when it comes to Starbucks' products. However, for male consumers, the rating quality increases if they have to travel over 3km for Starbucks, suggesting that men are more satisfied by Starbucks products if they have to travel and wait longer for them. This implies a sort of cognitive dissonance that may be more present in men with regards to Starbucks consumer products --- perhaps traveling and waiting more for the product increases men's perceived quality as they find it more refreshing or rewarding after putting in the effort for a longer journey.
+
+### Rating of Starbucks by Annual Income
+
+Next, we decided to see if there were any quality rating disparities present among consumers of differing annual incomes. We estimated that disparities may be more present with this variable given that annual income impacts the affordability and viewpoint upon consumer products, which would thus impact quality ratings. It would make most sense if consumers with higher annual incomes rated Starbucks products to have lower quality, as these consumers have the ability to afford to shop at more expensive, elusive, and luxury coffeehouses. Such coffeehouses, which focus on consumer experience and product specialty, may impress these consumers with their products and cause the commonplace Starbucks products to pale in comparison, resulting in a lower rating quality.
+
+On the other hand, consumers with lower annual incomes may rate the quality of Starbucks to be higher. Given that such consumers may not be able to afford luxury or local coffee and often have to drink cheaper coffee at home or at the hawker center (food court), Starbucks may be viewed as the best option in terms of taste, product variability, and relative price. This could result in a higher rating. We visualized these results using a univariate conditional means graph:
+
+```{r}
+starbucks%>%
+  group_by(annual_income)%>%
+  summarize(avg_rating_quality=mean(rating_quality,na.rm=TRUE))%>%
+  arrange(avg_rating_quality)%>%
+  ggplot(aes(x=annual_income,avg_rating_quality,
+                           y=avg_rating_quality,fill=annual_income))+
+  geom_bar(stat="identity")+
+  labs(x="Annual Income (RM)",
+       y="Mean Rated Quality of Starbucks in Relation\nto Other Cafe Brands (1 - 5)*",
+       title="Mean Rated Quality of Starbucks in Relation to Other\nCafe Brands: Arranged by Annual Income",
+       fill="Annual Income",
+       caption = "*where 1 = poorest quality and 5 = best quality")+
+  theme(axis.text.x=element_text(angle=45, vjust=1, hjust=1,size = rel(0.75)))+
+  scale_x_discrete(limits = c("Less than RM25,000", "RM25,000 - RM50,000", "RM50,000 - RM100,000", "RM100,000 - RM150,000", "More than RM150,000"))
+```
+
+As seen in the figure, our hypothesis is generally correct. Consumers with lower annual incomes (less than RM100,000) are more likely to give higher ratings, as all three categories of consumers that fit this criteria have a predicted rating well above 3.5. However, consumers with higher annual incomes (above RM100,000) are more likely to give lower ratings, as both categories of consumers that fit this criteria have a predicted rating below 3.5. These results suggest that Starbucks may not be fitting the needs and quality expectations of higher-earning consumers, whether that be due to their ability to afford higher luxury/unique coffeehouses, Starbucks' lack of luxury and specialty products, Starbucks' more commonplace brand image, or another reason.
+
+### Rating of Starbucks by Occupation
+
+Next, we decided to analyze occupation as a predictor of rating quality. The survey categorized respondents' occupations by four categories: Employed, Housewife, Self-Employed, and Student. It would make sense for all four occupations provided to have their quality needs met by Starbucks, especially given that all four are jobs or responsibilities that may incentivize consumers to desire coffee/caffeine or cafe snacks. To visualize the results, we conducted a univariate conditional means analysis on occupation as a predictor:
+
+```{r}
+starbucks%>%
+  group_by(occupation)%>%
+  summarize(avg_rating_quality=mean(rating_quality,na.rm=TRUE))%>%
+  arrange(avg_rating_quality)%>%
+  ggplot(aes(x=occupation,avg_rating_quality,
+                           y=avg_rating_quality,fill=occupation))+
+  geom_bar(stat="identity")+
+  labs(x="Occupation Status",
+       y="Mean Rated Quality of Starbucks in Relation\nto Other Cafe Brands (1 - 5)*",
+       title="Mean Rated Quality of Starbucks in Relation to Other\nCafe Brands: Arranged by Occupation Status",
+       fill="Occupation Status",
+       caption = "*where 1 = poorest quality and 5 = best quality")+
+  theme(axis.text.x=element_text(angle=45, vjust=1, hjust=1,size = rel(0.75)))
+```
+
+Interestingly, the results show that consumers identifying with the "Housewife" category are the most likely to give the highest quality rating (average = 4.0), while consumers identifying with the "Student" category are the most likely to give the lowest quality rating (average = 3.5). Those who identified with "Employed" or "Self-Employed" categories had average predicted quality ratings of approx. 3.75. These results were surprising to us, especially given that students often attend Starbucks and other big coffee chains frequently. However, these results imply that Starbucks is not meeting the quality needs and expectations of students, whether that be for financial reasons (students tend to have little income), time (students often have time responsibilities for school/class), university meal plans, etc.
+
+## Predictive Models
+
+In addition to analyzing the variables above, we decided to create two predictive models to determine which variables acted as "better" predictors of rating quality in terms of accuracy.
+
+Specifically, we wanted to analyze and compare a model using annual income and occupation as predictors with another model using price rating as a predictor. A consumer's annual income and occupation are more demographic, stagnant variables, while a consumer's price rating is a variable that is more of a changeable preference. This would give us insight into whether consumers' stagnant demographics give a more accurate prediction of quality rating at Starbucks than their preferences, or vice versa. Insights from these results could help better inform strategies and align marketing to permanent-based or preference-based trends. This specific comparison would be in regards to consumer demographics and preferences on price and affordability.
+
+### Predictive Model: Annual Income & Occupation
+
+The first predictive model we created uses conditional means analysis to analyze annual income and occupation as bivariate predictors. We combined these two variables together given their stagnant demographic nature and financial status relativity.
+
+```{r}
+starbucks%>%
+  group_by(occupation, rating_quality, annual_income)%>%
+  summarize(avg_rating_quality=mean(rating_quality, na.rm=TRUE))%>%
+  ggplot(aes(x=annual_income, y=avg_rating_quality, fill=occupation))+
+  geom_bar(stat="summary", position="dodge")+
+  scale_fill_brewer(palette="Pastel1")+
+  facet_wrap(~occupation)+
+  scale_x_discrete(limits = c("Less than RM25,000", "RM25,000 - RM50,000", "RM50,000 - RM100,000", "RM100,000 - RM150,000", "More than RM150,000"))+
+  labs(x="Annual Income (RM)",
+       y="Mean Rated Quality of Starbucks in Relation\nto Other Cafe Brands (1 - 5)*",
+       title="Mean Rated Quality of Starbucks: Arranged by\nAnnual Income and Occupation Status",
+       fill="Occupation Status",
+       caption = "*where 1 = poorest quality and 5 = best quality")+
+  theme(axis.text.x=element_text(angle=45, vjust=1, hjust=1,size = rel(0.75)))
+```
+
+Considering different occupation statuses, the rating quality findings differ from the initial conditional mean analysis. In employed consumers, the trend is opposite --- the wealthier the consumer, the higher rating they are likely to give. The survey doesn't indicate why this is, but the trend could be due to convenience. Starbucks is often present in many high-earnings office buildings and city centers, and most have speedy drive-thrus. Perhaps employed individuals are more inclined to grab Starbucks on their walks and drives to work because of this convenience in access. The second trend we see is that self-employed people are likely to stay around a rating of 4.0, no matter their income level. This could be due to Starbucks being a hot location for remote or at-home workers, especially due to their free Wifi, charging ports, waters, and discounted refills. Finally, we see random trends in the housewife and student occupations. We cannot exactly determine the trends due to some data being missing from the survey, as seen by the gaps above. This is a limitation that we will address later in this report.
+
+#### Accuracy of the Model
+
+We utilized RMSE to analyze the accuracy of this model given that the dataset utilizes interval and ordinal data. RMSE quantifies how dispersed, or clustered, the data points are to the linear regression line. As the points are more clustered to the linear regression line, the model has less error, which lowers the RMSE. Thus, a lower RMSE value indicates a more accurate model.
+
+```{r}
+mod1 <- lm(rating_quality ~ occupation +
+           annual_income,
+           data=starbucks); summary(mod1)
+rmse1 <- modelr::rmse(mod1, starbucks)
+rmse1
+```
+
+The RMSE returned as approx. 0.92. This is less than 1 and is relatively close to 0, indicating that annual income and occupation (together) make generally good predictors of rating quality of Starbucks.
+
+### Predictive Model: Price Rating
+
+The second predictive model we created uses a linear regression analysis to analyze price rating as a univariate predictor. In the survey, consumers were also asked how they would rate Starbucks' pricing on a scale of 1-5, with 1 being the worst pricing and 5 being the best pricing. We plotted this price rating against the quality rating, created a linear regression line, and included a jitter on the graph to demonstrate where the data points were clustered relative to the regression line. We wanted to compare this variable to the previous two due to its financial status relativity and insights into consumer preferences.
+
+```{r}
+g1<-ggplot(starbucks, aes(x=rating_price,y=rating_quality))+
+  geom_point()+
+  geom_smooth(method="lm")+
+  labs(x="Rating of Starbucks Pricing (1-5)*",
+       y="Rated Quality of Starbucks in Relation\nto Other Cafe Brands (1 - 5)*",
+       title="Predictions of Rating Quality of Starbucks in Relation\nto Other Cafes Using Rating of Starbucks Pricing",
+       caption = "*where 1 = poorest quality and 5 = best quality")
+g1
+
+g1_jitter <- g1 + geom_jitter(alpha=.25,size=.5,position=position_jitter(height=.1,width=.1))
+g1_jitter
+```
+
+As seen in the figure above, while most data points are clustered closely together, not all of them fall right near the regression line (though many come close or are off by a little bit). This could definitely affect RMSE and thus accuracy of the model. Overall, the findings suggest that if a consumer is satisfied with Starbucks' pricing, they are more likely to give a higher quality rating. On the other hand, if a consumer is dissatisfied with Starbucks' pricing, they are more likely to give a lower quality rating. This makes sense, as price is a strong determinant for many consumers when it comes to enjoying a consumer-facing business and its offerings. If a consumer feels like they got a good deal, they may be influenced to like their coffee better and feel happier about their decision to come to Starbucks. Vice versa, if a consumer feels like the price is too high, they may be influenced to feel like their coffee was not worth it, thus resulting in a lower quality rating.
+
+#### Accuracy of the Model
+
+RMSE was also used to calculate the accuracy of this model due to its interval nature of the data and comparison ability.
+
+```{r}
+mod2 <- lm(rating_quality ~ rating_price,
+           data=starbucks); summary(mod2)
+rmse2 <- modelr::rmse(mod2, starbucks)
+rmse2
+```
+
+The RMSE returned as approx. 0.79, indicating that consumer preference with regards to price is a more accurate predictor of rating quality than consumer stagnant demographics (annual income and occupation). While it is only slightly more accurate, it may mean that Starbucks needs to start placing more importance in consumer preferences over stagnant demographics when it comes to marketing, advertising, and other consumer "pull" strategies. This result also makes sense given that financial preferences are more subject to change with economic fluctuations. Focusing on adapting to consumer preferences (without necessarily ignoring income and occupation data) can help Starbucks become more consistently attractive to consumers, helping convert more consumers to be satisfied with the price and thus the quality.
+
+### K-Folds Analysis
+
+We also ran a k-folds analysis on the two predictive model to analyze accuracy of permanent-based vs. preference-based predictors. We "trained" and "tested" each model five times in different "folds," or new validation sets, to evaluate its overall performance and compare each of the five runs (as well as their averages). We will also use RMSE for the accuracy analysis due to our interval data.
+
+```{r}
+set.seed(3200)
+
+kfolds <- crossv_kfold(starbucks, k=5)
+kfolds$train
+kfolds$test
+kfolds$.id
+
+lm1 <- kfolds$train %>% map(~lm(rating_quality ~ occupation + annual_income, data = .))
+lm2 <- kfolds$train %>% map(~lm(rating_quality ~ rating_price , data = .))
+summary(lm1[[1]])
+summary(lm2[[1]])
+
+
+predictions <- function(model, test_data) {
+  data <- as.data.frame(test_data)
+  pred <- add_predictions(data, model)
+}
+
+pred1 <- map2_df(lm1, kfolds$test, predictions, .id="Run")
+pred2 <- map2_df(lm2, kfolds$test, predictions, .id="Run")
+
+
+pred1 %>%
+  group_by(Run)%>%
+  yardstick::rmse(rating_quality, pred)
+
+rmse3 <- pred1 %>%
+  group_by(Run)%>%
+  yardstick::rmse(rating_quality, pred) %>%
+  summarise(mean_rmse = mean(.estimate)); rmse3
+
+pred2 %>%
+  group_by(Run)%>%
+  yardstick::rmse(rating_quality, pred)
+
+rmse4 <- pred2 %>%
+  group_by(Run)%>%
+  yardstick::rmse(rating_quality, pred) %>%
+  summarise(mean_rmse2 = mean(.estimate)); rmse4
+```
+
+The K-Folds RMSE from the predictive model using annual income and occupation returned as approx. 0.99, while the K-Folds RMSE from the model using price rating returned as approx. 0.81. This lines up with our accuracy analysis from the original RMSEs --- price rating on its own is a more accurate predictor of rating quality than annual income and occupation together, suggesting that preference-based demographics are more accurate and helpful for Starbucks to utilize than stagnant demographics.
+
+## Recommendations
+
+Based on the analysis results, we have created a few recommendations to consider.
+
+### Summary of Insights
+
+-   Consumers who have to travel further for Starbucks are more likely to give a lower quality rating. This could be because they dislike the inconvenience of having to travel and wait longer for their orders, which may also cause food and drink products to get cold.
+
+-   Women are not as satisfied with the quality of Starbucks if they have to travel further and wait longer, implying that women tend to value convenience, speed, and freshness.
+
+-   Men are more satisfied with the quality of Starbucks if they have to travel over 3km, implying that men tend to invoke an effort-outcome relationship with consumer products and find products more rewarding and refreshing after making a journey for them.
+
+-   Consumers with higher annual incomes are more likely to give a lower quality rating. This could be due to them being able to afford more expensive/elusive/luxury coffeehouses, making Starbucks and their commonplace brand pale in comparison.
+
+-   Consumers with lower annual incomes are more likely to give a higher quality rating. This could be due to them not being able to afford luxury coffeehouses and primarily turning to cheaper coffee at home or at the hawker center (food court). For this, they view Starbucks as the best option in terms of quality.
+
+-   Housewife-identifying consumers are more likely to give a higher quality rating. They could like to spend their pastimes at Starbucks, buy items for their children, or benefit from the caffeine.
+
+-   Student-identifying consumers are more likely to give a lower quality rating. This could be due to Starbucks not catering to student needs, whether that be due to price, university meal plans, or hours.
+
+-   Consumers' price preferences are strong determinants in their quality rating. This is a direct relationship where if consumers feel good about the price, they feel better about the quality (and vice versa).
+
+### Strategic Ideas
+
+Problem: Consumers are more dissatisfied when they have to drive further to Starbucks. - Emphasize/push mobile ordering app, where consumers who live further away can order ahead of their visit and set a pickup time. This avoids the food getting cold during this travel/wait time. - Create heat-intensive, storage-friendly, and microwave-friendly togo packaging to help avoid this cooling issue as well. - Partner with a gas station company (e.g. 7-11) to create an in-app points system for miles driven to Starbucks. Enough miles can create rewards for Starbucks and the gas station (e.g. discounts on gas and food, free drinks with a certain amount of points, etc.), incentivizing consumers who live further away.
+
+Problem: Women are more dissatisfied when coming from further away; Men are more satisfied when coming from further away. - Have marketing/ads displaying happy women who get their orders quickly and freshly made, and happy men who drive further into town on a journey just to be fulfilled by Starbucks. This can tap into the interests/trends of both genders and allow them to resonate.
+
+Problem: High-earning consumers may not be as impressed with Starbucks in relation to luxury/experiential coffeehouses. - Create more unique, seasonal, or limited flavors and creations for consumers to experience. E.g. when Starbucks introduced the Oleato, the olive oil coffee, that is usually only available in Italy. This can help bring some "exclusivity" and "coolness" back to Starbucks, drawing in these consumers.
+
+Problem: Student consumers are more likely to give a lower quality rating. - Target new marketing initiatives for students. E.g. Flash a student ID and get a price discount. Open at later hours and play instrumental music to create a more studious environment at night. Starbucks near campuses can partner with universities to get their store or products on their meal money/dining plans. Show ads where a student is using Starbucks to more efficiently study and do better on exams.
+
+Problem: Price preferences are a strong determinant of quality, and lower price ratings correlate to lower quality ratings. - Keep administration/financial team alert to changes in the stock market, competitors, and overall economic wellbeing. Adjust prices and taxes accordingly. - Create a more affordable line of products (e.g. smaller, less ingredient versions of coffees and sandwiches) that would make the average consumer still desire the regular product, but would help those with price dissatisfaction still have options for satisfactory purchase. This could improve price rating and thus quality rating in this segment.
+
+### Limitations
+
+What would we do differently if the survey had to be conducted again? - Change interval/ordinal data to continuous data where applicable. This can give more accurate data analysis and trends, especially with continuous items such as annual income, age, distance, etc. - Have more than 122 respondents. Surveys should aim for thousands of respondents to build accuracy and create a more representative sample of the whole population. - Compare survey data from multiple countries. This can allow for data examination within a country, region, continent, etc. and lead to more informed strategies and decision-making. Of course, this survey alone is only applicable to Malaysian customers, and the trends may not be the same in the US. - Ask for more follow up questions. For example, along with asking about rating quality, there can be a survey text box for respondents to write why. This could help us truly understand the reasons for rating quality being low or high beyond guessing based on the demographic. For instance, if we assumed students were not satisfied due to hours, but the text box results revealed that students had a cheaper competitor on campus, that would better inform our reasoning for the data trends as well as our following strategy.
+
+# Thank You!
